@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Connect 4 - Четыре в ряд</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2c3e50">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <style>
+        * {
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a2a3a, #0d1a2a);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            touch-action: manipulation;
+        }
+
+        .game-container {
+            background: #2c3e50;
+            border-radius: 30px;
+            padding: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+        }
+
+        canvas {
+            display: block;
+            margin: 0 auto;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            cursor: pointer;
+            touch-action: manipulation;
+            width: 100%;
+            height: auto;
+        }
+
+        .info {
+            text-align: center;
+            margin-top: 20px;
+            color: white;
+        }
+
+        .status {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        button {
+            background: #e67e22;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1.2rem;
+            border-radius: 50px;
+            cursor: pointer;
+            margin: 5px;
+            transition: transform 0.2s, background 0.2s;
+            touch-action: manipulation;
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+        button.reset {
+            background: #27ae60;
+        }
+
+        button.new-game {
+            background: #3498db;
+        }
+
+        .first-player-selector {
+            margin-bottom: 15px;
+        }
+
+        .first-player-selector button {
+            background: #34495e;
+            padding: 8px 20px;
+            font-size: 1rem;
+        }
+
+        .first-player-selector button.active {
+            background: #e67e22;
+            box-shadow: 0 0 10px rgba(230,126,34,0.5);
+        }
+
+        @media (max-width: 600px) {
+            .status { font-size: 1.2rem; }
+            button { padding: 10px 20px; font-size: 1rem; }
+            .game-container { padding: 15px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <canvas id="canvas" width="700" height="600"></canvas>
+        <div class="info">
+            <div class="status" id="status">Ход: 🔴 Красный</div>
+            <div class="first-player-selector">
+                <button id="firstX" class="active">🔴 Я первый</button>
+                <button id="firstO">🟡 Бот первый</button>
+            </div>
+            <div>
+                <button class="reset" id="reset">🔄 Новая игра</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/conn4/game.js"></script>
+    <script>
+        // Регистрация Service Worker для офлайн-режима
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/conn4/sw.js')
+                .then(reg => console.log('SW registered:', reg))
+                .catch(err => console.log('SW error:', err));
+        }
+    </script>
+</body>
+</html>
