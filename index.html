@@ -4,11 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Connect 4 - Четыре в ряд</title>
-    <link rel="manifest" href="manifest.json">
+
+    <link rel="manifest" href="/conn4/manifest.json">
     <meta name="theme-color" content="#2c3e50">
+
+    <!-- iOS metadata/icons (optional) -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="apple-touch-icon" href="/conn4/icons/icon-192.png">
     <style>
         * {
             user-select: none;
@@ -124,8 +127,12 @@
     <script>
         // Регистрация Service Worker для офлайн-режима
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/conn4/sw.js')
-                .then(reg => console.log('SW registered:', reg))
+            navigator.serviceWorker.register('/conn4/sw.js', { scope: '/conn4/' })
+                .then(async (reg) => {
+                    console.log('SW registered:', reg);
+                    // If there's a waiting SW, activate it immediately
+                    if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                })
                 .catch(err => console.log('SW error:', err));
         }
     </script>
