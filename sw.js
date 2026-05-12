@@ -1,34 +1,46 @@
 // Service Worker for Connect4 PWA
 // Goal: app shell works offline after installation with максимально сильное кэширование.
-// Strategy:
-// - Precache all core assets on install (cache-first offline).
-// - Serve navigations with cached index.html (offline app-shell).
-// - For same-origin static assets: cache-first with network fallback + runtime caching.
-// - Avoid caching Flask debug/no-store responses by checking status.
-// - Use a versioned cache name to control updates.
+// Strategy (aggressive offline-first):
+// - Precache core app-shell on install.
+// - Install must be resilient: one failed asset must NOT break SW install.
+// - Navigations: app-shell (cached index.html) with offline.html fallback.
+// - Same-origin GET assets: cache-first + runtime caching.
+// - Optionally refresh cached assets in background when online.
 
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4';
 const PRECACHE = `connect4-precache-${CACHE_VERSION}`;
 const RUNTIME = `connect4-runtime-${CACHE_VERSION}`;
+
+const SCOPE_BASE = '/conn4';
+const INDEX_URL = `${SCOPE_BASE}/index.html`;
+const OFFLINE_URL = `${SCOPE_BASE}/offline.html`;
 
 // IMPORTANT: project is hosted under /conn4/ scope.
 // Keep these URLs EXACTLY as they are requested by the app.
 const PRECACHE_URLS = [
-  '/conn4/',
-  '/conn4/index.html',
-  '/conn4/game.js',
-  '/conn4/manifest.json',
-  '/conn4/sw.js',
-  '/conn4/icons/icon-192.png',
-  '/conn4/icons/icon-512.png'
+  `${SCOPE_BASE}/`,
+  INDEX_URL,
+  OFFLINE_URL,
+  `${SCOPE_BASE}/game.js`,
+  `${SCOPE_BASE}/manifest.json`,
+  `${SCOPE_BASE}/sw.js`,
+  `${SCOPE_BASE}/icons/icon-192.png`,
+  `${SCOPE_BASE}/icons/icon-512.png`
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     (async () => {
       const cache = await caches.open(PRECACHE);
-      // Use Request with cache: 'reload' to bypass the HTTP cache during SW install.
-      await cache.addAll(PRECACHE_URLS.map((url) => new Request(url, { cache: 'reload' })));
+
+      // Resilient precache: do not fail install if one asset can't be fetched.
+      // Also bypass HTTP cache during install.
+      await Promise.allSettled(
+        PRECACHE_URLS.map((url) =>
+          cache.add(new Request(url, { cache: 'reload' }))
+        )
+      );
+
       await self.skipWaiting();
     })()
   );
@@ -58,15 +70,15 @@ function isCacheableResponse(res) {
   return !!res && res.status === 200 && (res.type === 'basic' || res.type === 'cors');
 }
 
-async function cacheFirst(req, cacheName, fallbackUrl = null) {
+async function cacheFirst(req, cacheName, fallbackUrl = null, matchOptions = undefined) {
   const cache = await caches.open(cacheName);
-  const cached = await cache.match(req, { ignoreSearch: false });
+  const cached = await cache.match(req, matchOptions);
   if (cached) return cached;
 
   try {
     const fresh = await fetch(req);
     if (isCacheableResponse(fresh)) {
-      cache.put(req, fresh.clone());
+      await cache.put(req, fresh.clone());
     }
     return fresh;
   } catch (e) {
@@ -74,44 +86,47 @@ async function cacheFirst(req, cacheName, fallbackUrl = null) {
       const fallback = await cache.match(fallbackUrl);
       if (fallback) return fallback;
     }
-    return Response.error();
+    // Prefer a controlled offline response over a network error.
+    return new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   }
+}
+
+function isInScope(pathname) {
+  return pathname === SCOPE_BASE || pathname.startsWith(`${SCOPE_BASE}/`);
 }
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
-
   if (req.method !== 'GET') return;
 
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
-  // Always ignore query params when determining app-shell fallback.
   const pathname = url.pathname;
+  if (!isInScope(pathname)) return;
 
-  // Navigation: app-shell
+  // Navigation requests: return cached app-shell first.
   if (req.mode === 'navigate') {
     event.respondWith(
       (async () => {
-        // Try precached index.html first.
+        // Aggressive: always try app-shell from precache.
         const precache = await caches.open(PRECACHE);
-        const cachedIndex = await precache.match('/conn4/index.html');
+        const cachedIndex = await precache.match(INDEX_URL, { ignoreSearch: true });
         if (cachedIndex) return cachedIndex;
 
-        // If for some reason it is not in precache, try network and store.
-        return cacheFirst(req, RUNTIME, '/conn4/index.html');
+        // Fallback: runtime cache / network, and finally offline page.
+        return cacheFirst(req, RUNTIME, OFFLINE_URL);
       })()
     );
     return;
   }
 
-  // For known precached URLs: strict cache-first from PRECACHE.
+  // Known precached assets: strict cache-first.
   if (PRECACHE_URLS.includes(pathname)) {
     event.respondWith(cacheFirst(req, PRECACHE));
     return;
   }
 
-  // Other same-origin assets: cache-first runtime.
-  // This includes additional icons or future assets.
+  // Other same-origin assets in /conn4: cache-first runtime (max caching).
   event.respondWith(cacheFirst(req, RUNTIME));
 });
